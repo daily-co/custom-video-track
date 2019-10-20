@@ -1,0 +1,94 @@
+<html>
+<head>
+<script src="https://unpkg.com/@daily-co/daily-js@0.9.7-beta.1"></script>
+<script src="./canvas-stream.js"></script>
+<title>video sender</title>
+</head>
+<body>
+
+<div id="controls">
+  <span onclick="join()" id="join-leave">join the call</span>
+  <br>&nbsp;<br>
+  <div id="bandwidth-controls" style="visibility: hidden">
+    kbs: <input type="text" id="kbs" value="600"></input><br>
+    width: <input type="text" id="width" value="640"></input><br>
+    height: <input type="text" id="height" value="480"></input><br>
+    frameRate: <input type="text" id="frameRate" value="30"></input><br>
+    <button onclick="setBandwidth()">set</button>
+  </div>
+</div>
+
+<!-- spacer -->
+<div><br></div>
+
+
+<div>local canvas (sanity check)</div>
+<div id="canvas-container" style="width: 120px">
+</div>
+
+
+<script>
+//
+// get canvas stream, create call object, and set up important event
+// listeners
+//
+let { stream, canvas } = getCanvasStream();
+canvas.style.width="100%";
+document.getElementById('canvas-container').appendChild(canvas);
+
+callObject = DailyIframe.createCallObject({
+  url: 'https://api-demo.daily.co/20191019-custom-track',
+  userName: 'roberto the robot',
+  videoSource: stream.getVideoTracks()[0],
+  audioSource: false,
+  dailyConfig: { disableSimulcast: true }
+});
+
+callObject.on('error', unrecoverableError);
+callObject.on('network-quality-change', networkEvent);
+
+//
+//
+//
+
+async function join() {
+  let joinBtn = document.getElementById('join-leave');
+  joinBtn.onclick = null;
+  joinBtn.innerHTML = ' ... ';
+  await callObject.join();
+  joinBtn.innerHTML = 'leave the call';
+  joinBtn.onclick = leave;
+  document.getElementById('bandwidth-controls').style.visibility = 'visible';
+}
+
+async function leave() {
+  let joinBtn = document.getElementById('join-leave');
+  joinBtn.onclick = null;
+  joinBtn.innerHTML = ' ... ';
+  await callObject.leave();
+  joinBtn.innerHTML = 'join the call';
+  joinBtn.onclick = join;
+  document.getElementById('bandwidth-controls').style.visibility = 'hidden';
+}
+
+async function setBandwidth() {
+  let kbs = Number(document.getElementById('kbs').value),
+      width = Number(document.getElementById('width').value),
+      height = Number(document.getElementById('height').value),
+      frameRate = Number(document.getElementById('frameRate').value);
+  console.log(`calling ... callObject.setBandwidth({ kbs: ${kbs}, trackConstraints: { width: ${width}, height: ${height}, frameRate: ${frameRate} }});`);
+  callObject.setBandwidth({ kbs, trackConstraints: { width, height, frameRate }});
+}
+
+function unrecoverableError(evt) {
+  console.log('HANDLE UNRECOVERABLE ERROR HERE -- RELOAD AND RECONNECT');
+  console.log(evt);
+}
+
+function networkEvent(evt) {
+  console.log(evt);
+}
+
+</script>
+</body>
+</html>

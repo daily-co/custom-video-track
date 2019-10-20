@@ -1,0 +1,160 @@
+<html>
+<head>
+<script src="https://unpkg.com/@daily-co/daily-js@0.9.7-beta.1"></script>
+<title>video sender</title>
+</head>
+<body>
+
+<div id="controls">
+  <span onclick="join()" id="join-leave">join the call</span>
+  <br>&nbsp;<br>
+  <div id="bandwidth-stats" style="visibility: hidden">
+    <pre>
+local info (for operator, not robot): 
+  download kbs: <span id="kbs">0</span>
+  video width:  <span id="width">0</span>
+  video height: <span id="height">0</span>
+  framerate:    (not available on receiver)
+    </pre>
+  </div>
+</div>
+
+<!-- spacer -->
+<div><br></div>
+
+<div id="participants-info">
+others in the call:
+<ul id="participants-list"></ul>
+</div>
+
+<!-- spacer -->
+<div><br></div>
+
+<div id="video-container" style="width: 600px">
+</div>
+
+<script>
+//
+// create call object, and set up important event
+// listeners
+//
+callObject = DailyIframe.createCallObject({
+  url: 'https://api-demo.daily.co/20191019-custom-track',
+  videoSource: false,
+  audioSource: false,
+});
+
+callObject.on('participant-joined', participantJoinedEvent);
+callObject.on('participant-updated', participantUpdatedEvent);
+callObject.on('participant-left', participantLeftEvent);
+callObject.on('track-started', trackStarted);
+callObject.on('track-stopped', trackStopped);
+callObject.on('error', unrecoverableError);
+callObject.on('network-quality-change', networkEvent);
+
+//
+//
+//
+
+async function join() {
+  let joinBtn = document.getElementById('join-leave');
+  joinBtn.onclick = null;
+  joinBtn.innerHTML = ' ... ';
+  await callObject.join();
+  joinBtn.innerHTML = 'leave the call';
+  joinBtn.onclick = leave;
+  document.getElementById('bandwidth-stats').style.visibility = 'visible';
+  window.statsInterval = setInterval(updateStats, 2000);
+}
+
+async function leave() {
+  let joinBtn = document.getElementById('join-leave');
+  joinBtn.onclick = null;
+  joinBtn.innerHTML = ' ... ';
+  await callObject.leave();
+  joinBtn.innerHTML = 'join the call';
+  joinBtn.onclick = join;
+  document.getElementById('bandwidth-stats').style.visibility = 'hidden';
+  clearInterval(window.statsInterval);
+  document.getElementById('kbs').innerHTML = '0';
+  document.getElementById('video-container').innerHTML = '';
+  document.getElementById('participants-list').innerHTML = '';
+}
+
+function participantJoinedEvent(evt) {
+  console.log(evt);
+  showParticipants();
+}
+
+function participantUpdatedEvent(evt) {
+  console.log(evt);
+}
+
+function participantLeftEvent(evt) {
+  console.log(evt);
+  showParticipants();
+}
+
+function unrecoverableError(evt) {
+  console.log('HANDLE UNRECOVERABLE ERROR HERE -- RELOAD AND RECONNECT');
+  console.log(evt);
+}
+
+function networkEvent(evt) {
+  console.log(evt);
+}
+
+function trackStarted(evt) {
+  console.log(evt);
+  if (evt.track.kind !== 'video') {
+    return;
+  }
+  let videoEl = document.createElement('video');
+  videoEl.style.width = '100%';
+  videoEl.autoplay = true;
+  videoEl.srcObject = new MediaStream([ evt.track ]);
+  document.getElementById('video-container').appendChild(videoEl);
+}
+
+function trackStopped(evt) {
+  console.log(evt);
+  for (let vid of document.getElementsByTagName('video')) {
+    if (vid.srcObject && vid.srcObject.getTracks()[0] === evt.track) {
+      vid.srcObject = null;
+      vid.remove();
+    }
+  }
+}
+
+async function updateStats() {
+  let networkInfo = await callObject.getNetworkStats(),
+      kbs = Math.round(networkInfo.stats.latest.recvBitsPerSecond / 1000);
+  document.getElementById('kbs').innerHTML = kbs;
+  let vid = document.getElementsByTagName('video')[0];
+  if (vid) {
+    // this might not be the same as the sender's track width and height,
+    // because Chromium can downsample the resolution to fit within
+    // bandwidth constraints
+    document.getElementById('width').innerHTML = vid.videoWidth;
+    document.getElementById('height').innerHTML = vid.videoHeight;
+  }
+}
+
+function showParticipants() {
+  let ul = document.getElementById('participants-list');
+  ul.innerHTML = '';
+  let participants = callObject.participants();
+  for (let p of Object.values(participants)) {
+    if (p.local) {
+      continue;
+    }
+    let li = document.createElement('li');
+    li.innerHTML = p.user_name || p.session_id;
+    ul.appendChild(li);
+  }
+}
+
+</script>
+
+</body>
+</html>
